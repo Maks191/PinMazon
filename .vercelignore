@@ -1,0 +1,4 @@
+# Deploy only the public Pinterest application pages.
+/*
+!docs
+!vercel.json
