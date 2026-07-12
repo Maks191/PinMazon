@@ -1,0 +1,10 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+*.pyc
+data/pinterest_token.json
+data/history.jsonl
+data/*.log
+output/*
+!output/.gitkeep

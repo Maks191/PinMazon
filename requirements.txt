@@ -1,0 +1,7 @@
+streamlit>=1.45
+openai>=1.70
+pydantic>=2.10
+pydantic-settings>=2.7
+Pillow>=11.1
+requests>=2.32
+python-dotenv>=1.0
