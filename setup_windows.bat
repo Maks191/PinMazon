@@ -3,7 +3,7 @@ cd /d %~dp0
 py -m venv .venv
 call .venv\Scripts\activate
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements-local.txt
 if not exist .env copy .env.example .env
 echo.
 echo Setup complete.

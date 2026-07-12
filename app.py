@@ -1,170 +1,143 @@
 from __future__ import annotations
 
+import base64
+import json
 from pathlib import Path
+import tempfile
 
-import streamlit as st
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
+from openai import APIConnectionError, AuthenticationError, RateLimitError
+from starlette.concurrency import run_in_threadpool
 
+from pinmazon.compliance import ComplianceError
 from pinmazon.links import build_affiliate_url
-from pinmazon.pinterest import PinterestClient
 from pinmazon.schemas import ProductInput
 from pinmazon.settings import Settings
 from pinmazon.workflow import run_pin_job
 
 
-st.set_page_config(
-    page_title="PinMazon One-Click",
-    page_icon="📌",
-    layout="wide",
+PUBLIC_DIR = Path(__file__).resolve().parent / "public"
+MAX_UPLOAD_BYTES = 3 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
+
+app = FastAPI(
+    title="PinMazon Cloud",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
-settings = Settings()
 
-st.title("PinMazon One-Click")
-st.caption("Product image + verified facts → Pinterest pin → SEO metadata → optional direct publish")
+@app.get("/", response_class=HTMLResponse)
+def index() -> str:
+    return (PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
 
-with st.sidebar:
-    st.subheader("Connection")
-    st.write("OpenAI:", "✅" if settings.openai_api_key else "❌")
-    st.write("Pinterest token:", "✅" if settings.token_path.exists() else "❌")
-    publish_mode = st.selectbox(
-        "Action",
-        options=["Generate only", "Generate + publish now"],
-        index=1 if settings.default_publish_mode == "publish_now" else 0,
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy() -> str:
+    return (PUBLIC_DIR / "privacy.html").read_text(encoding="utf-8")
+
+
+@app.get("/styles.css", include_in_schema=False)
+def styles() -> FileResponse:
+    return FileResponse(PUBLIC_DIR / "styles.css", media_type="text/css")
+
+
+@app.get("/app.js", include_in_schema=False)
+def javascript() -> FileResponse:
+    return FileResponse(PUBLIC_DIR / "app.js", media_type="text/javascript")
+
+
+@app.get("/api/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "mode": "generate_only"}
+
+
+@app.post("/api/generate")
+async def generate(
+    product_image: UploadFile = File(...),
+    openai_api_key: str = Form(...),
+    amazon_tracking_id: str = Form(...),
+    product_name: str = Form(...),
+    amazon_url: str = Form(...),
+    features: str = Form(""),
+    audience: str = Form("creators, remote workers, and tech buyers"),
+    cluster: str = Form("Amazon Tech Finds"),
+    style: str = Form("apple_clean"),
+    use_ai_background: bool = Form(False),
+) -> dict:
+    api_key = openai_api_key.strip()
+    if len(api_key) < 20:
+        raise HTTPException(status_code=400, detail="Enter a valid OpenAI API key.")
+    if not amazon_tracking_id.strip():
+        raise HTTPException(status_code=400, detail="Amazon Tracking ID is required.")
+    if product_image.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Upload a PNG, JPG, or WEBP product image.")
+
+    image_bytes = await product_image.read(MAX_UPLOAD_BYTES + 1)
+    if len(image_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Product image must be 3 MB or smaller.")
+
+    destination_url = build_affiliate_url(
+        amazon_url,
+        amazon_tracking_id.strip(),
+        "www.amazon.com",
     )
-    force_duplicate = st.checkbox("Allow intentional duplicate", value=False)
 
-boards: list[dict] = []
-if settings.token_path.exists():
     try:
-        boards = PinterestClient(settings).list_boards()
-    except Exception as exc:
-        st.sidebar.warning(f"Could not load boards: {exc}")
-
-left, right = st.columns([1.05, 0.95])
-
-def sync_destination_url() -> None:
-    amazon_value = st.session_state.get("amazon_url", "")
-    if amazon_value:
-        st.session_state["destination_url"] = build_affiliate_url(
-            amazon_value,
-            settings.amazon_tracking_id,
-            settings.amazon_marketplace_host,
-        )
-
-
-with left:
-    product_name = st.text_input("Product name")
-    amazon_url = st.text_input(
-        "Amazon product URL",
-        key="amazon_url",
-        on_change=sync_destination_url,
-    )
-    destination_url = st.text_input(
-        "Destination / affiliate link",
-        key="destination_url",
-        help="Prefer a valid Amazon SiteStripe/Special Link or your own landing page.",
-    )
-    product_image = st.file_uploader(
-        "Product image",
-        type=["png", "jpg", "jpeg", "webp"],
-    )
-    image_url = st.text_input("Or direct product image URL")
-    features = st.text_area(
-        "Verified facts / useful benefits",
-        height=150,
-        placeholder="Only facts you have verified. Leave blank rather than inventing specs.",
-    )
-
-with right:
-    audience = st.text_input("Audience", value="creators, remote workers, and tech buyers")
-    cluster = st.selectbox(
-        "Cluster",
-        [
-            "Clean Desk Setup Gadgets",
-            "Laptop Accessories and Desk Setup",
-            "Smart Home Gadgets",
-            "Creator Gear for Photo and Video",
-            "Travel Creator Cameras",
-            "FPV Drones and Aerial Gear",
-            "Amazon Tech Finds",
-            "Tech Gifts for Creators",
-        ],
-    )
-    style = st.selectbox(
-        "Visual style",
-        ["apple_clean", "luxury_editorial", "viral_useful", "creator_setup", "warm_lifestyle"],
-    )
-    use_ai_background = st.checkbox(
-        "Generate AI background",
-        value=False,
-        help="The real product image is composited on top. Pinterest AI_MODIFIED disclosure is sent.",
-    )
-
-    if boards:
-        labels = {
-            f"{board.get('name', 'Unnamed')} — {board.get('id')}": board
-            for board in boards
-        }
-        selected = st.selectbox("Pinterest board", list(labels))
-        board = labels[selected]
-        board_id = board["id"]
-        board_name = board.get("name", "")
-    else:
-        board_id = st.text_input(
-            "Pinterest board ID (required only for publish)",
-            value=settings.pinterest_default_board_id,
-        )
-        board_name = st.text_input("Board name (optional)")
-
-button_label = "Generate + Publish" if publish_mode == "Generate + publish now" else "Generate Pin Pack"
-clicked = st.button(button_label, type="primary", use_container_width=True)
-
-if clicked:
-    try:
-        product = ProductInput(
-            product_name=product_name,
-            amazon_url=amazon_url,
-            destination_url=destination_url,
-            image_url=image_url,
-            features=features,
-            audience=audience,
-            cluster=cluster,
-            style=style,
-            board_id=board_id,
-            board_name=board_name,
-            use_ai_background=use_ai_background,
-        )
-        with st.spinner("Creating pin package..."):
-            result = run_pin_job(
-                product=product,
-                product_image_bytes=product_image.getvalue() if product_image else None,
-                settings=settings,
-                publish_now=publish_mode == "Generate + publish now",
-                force_duplicate=force_duplicate,
+        with tempfile.TemporaryDirectory(prefix="pinmazon-") as temp_dir:
+            root = Path(temp_dir)
+            settings = Settings(
+                _env_file=None,
+                openai_api_key=api_key,
+                amazon_tracking_id=amazon_tracking_id.strip(),
+                output_dir=str(root / "output"),
+                history_file=str(root / "history.jsonl"),
+                pinterest_token_file=str(root / "pinterest_token.json"),
             )
-
-        st.success("Published." if result.published else "Pin package generated.")
-        st.image(result.image_path, caption=result.pin_copy.title, width=500)
-        st.subheader("Pinterest metadata")
-        st.write("**Headline:**", result.pin_copy.headline)
-        st.write("**Bullets:**", " · ".join(result.pin_copy.bullets))
-        st.write("**Title:**", result.pin_copy.title)
-        st.write("**Description:**", result.pin_copy.description)
-        st.write("**ALT:**", result.pin_copy.alt_text)
-        st.write("**Hashtags:**", " ".join(result.pin_copy.hashtags))
-        if result.pin_id:
-            st.write("**Pinterest Pin ID:**", result.pin_id)
-        st.download_button(
-            "Download pin PNG",
-            data=Path(result.image_path).read_bytes(),
-            file_name=Path(result.image_path).name,
-            mime="image/png",
-        )
-        st.download_button(
-            "Download metadata JSON",
-            data=Path(result.metadata_path).read_bytes(),
-            file_name=Path(result.metadata_path).name,
-            mime="application/json",
-        )
+            product = ProductInput(
+                product_name=product_name,
+                amazon_url=amazon_url,
+                destination_url=destination_url,
+                features=features,
+                audience=audience,
+                cluster=cluster,
+                style=style,
+                board_id="",
+                use_ai_background=use_ai_background,
+            )
+            result = await run_in_threadpool(
+                run_pin_job,
+                product=product,
+                product_image_bytes=image_bytes,
+                settings=settings,
+                publish_now=False,
+            )
+            image_data = base64.b64encode(Path(result.image_path).read_bytes()).decode("ascii")
+            metadata = json.loads(Path(result.metadata_path).read_text(encoding="utf-8"))
+            metadata["image_path"] = "pin.png"
+    except AuthenticationError as exc:
+        raise HTTPException(status_code=401, detail="OpenAI rejected this API key.") from exc
+    except RateLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail="OpenAI rate limit or account quota was reached.",
+        ) from exc
+    except APIConnectionError as exc:
+        raise HTTPException(status_code=502, detail="Could not connect to OpenAI.") from exc
+    except (ComplianceError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        st.exception(exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Generation failed. Check the supplied facts and try again.",
+        ) from exc
+
+    return {
+        "image_base64": image_data,
+        "metadata": metadata,
+        "copy": result.pin_copy.model_dump(),
+        "destination_url": destination_url,
+        "published": False,
+    }

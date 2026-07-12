@@ -1,4 +1,7 @@
-# Deploy only the public Pinterest application pages.
+# Deploy only the cloud generator and its runtime dependencies.
 /*
-!docs
+!app.py
+!pinmazon
+!public
+!requirements.txt
 !vercel.json

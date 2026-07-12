@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Generate reviewed Pinterest affiliate creatives from verified product information.">
+  <title>PinMazon Cloud — Generate Pinterest Pins</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">PINMAZON <span>by Aesthetic Finds Lab</span></a>
+    <div class="status"><i></i> Generate only</div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Pinterest affiliate creative studio</div>
+      <h1>One product.<br><em>One clean pin.</em></h1>
+      <p>Use your own OpenAI API key to create a compliant 1000 × 1500 Pinterest package. Your key is used for this request only and is never saved by PinMazon.</p>
+    </section>
+
+    <form id="generator" class="workspace">
+      <section class="panel form-panel">
+        <div class="section-title"><span>01</span><h2>Access</h2></div>
+        <label>OpenAI API key
+          <input name="openai_api_key" type="password" autocomplete="off" placeholder="sk-…" required minlength="20">
+          <small>Sent securely to this server for one generation request. Never stored.</small>
+        </label>
+        <label>Amazon Tracking ID
+          <input name="amazon_tracking_id" placeholder="your-tag-20" required>
+        </label>
+
+        <div class="section-title"><span>02</span><h2>Verified product</h2></div>
+        <label>Product name
+          <input name="product_name" placeholder="Exact product name" required minlength="2" maxlength="180">
+        </label>
+        <label>Amazon.com product URL
+          <input name="amazon_url" type="url" placeholder="https://www.amazon.com/dp/ASIN" required>
+        </label>
+        <label>Real product image
+          <input name="product_image" type="file" accept="image/png,image/jpeg,image/webp" required>
+          <small>PNG, JPG or WEBP · maximum 3 MB · no Amazon page scraping</small>
+        </label>
+        <label>Verified facts and useful benefits
+          <textarea name="features" rows="5" placeholder="Only facts you have personally verified. Leave uncertain details out."></textarea>
+        </label>
+
+        <div class="two-col">
+          <label>Audience
+            <input name="audience" value="creators, remote workers, and tech buyers">
+          </label>
+          <label>Content cluster
+            <select name="cluster">
+              <option>Amazon Tech Finds</option>
+              <option>Clean Desk Setup Gadgets</option>
+              <option>Creator Gear for Photo and Video</option>
+              <option>Laptop Accessories and Desk Setup</option>
+              <option>Smart Home Gadgets</option>
+              <option>Tech Gifts for Creators</option>
+            </select>
+          </label>
+        </div>
+        <div class="two-col">
+          <label>Visual style
+            <select name="style">
+              <option value="apple_clean">Apple clean</option>
+              <option value="luxury_editorial">Luxury editorial</option>
+              <option value="viral_useful">Viral useful</option>
+              <option value="creator_setup">Creator setup</option>
+              <option value="warm_lifestyle">Warm lifestyle</option>
+            </select>
+          </label>
+          <label class="check"><input name="use_ai_background" type="checkbox" value="true"> Generate AI background</label>
+        </div>
+
+        <button id="submit" type="submit">Generate Pin Pack <span>→</span></button>
+        <p class="notice">This cloud MVP does not publish to Pinterest. Review the generated claims, product image, disclosure and affiliate tag before publishing.</p>
+      </section>
+
+      <section class="panel result-panel" aria-live="polite">
+        <div class="section-title"><span>03</span><h2>Result</h2></div>
+        <div id="empty" class="empty-state"><b>1000 × 1500</b><span>Your generated pin will appear here.</span></div>
+        <div id="loading" class="loading" hidden><i></i><b>Creating the pin package…</b><span>Copy generation and rendering can take up to a minute.</span></div>
+        <div id="error" class="error" hidden></div>
+        <div id="result" hidden>
+          <img id="pin-preview" alt="Generated Pinterest pin preview">
+          <div class="actions">
+            <a id="download-png" class="button-secondary" download="pinmazon-pin.png">Download PNG</a>
+            <a id="download-json" class="button-secondary" download="pinmazon-metadata.json">Metadata JSON</a>
+          </div>
+          <dl>
+            <div><dt>Headline</dt><dd id="headline"></dd></div>
+            <div><dt>Bullets</dt><dd id="bullets"></dd></div>
+            <div><dt>Title</dt><dd id="pin-title"></dd></div>
+            <div><dt>Description</dt><dd id="description"></dd></div>
+            <div><dt>Affiliate link</dt><dd id="destination"></dd></div>
+          </dl>
+        </div>
+      </section>
+    </form>
+  </main>
+
+  <footer><span>© 2026 Aesthetic Finds Lab</span><a href="/privacy">Privacy Policy</a></footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>
