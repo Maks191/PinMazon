@@ -18,6 +18,7 @@ from pinmazon.workflow import run_pin_job
 
 
 PUBLIC_DIR = Path(__file__).resolve().parent / "public"
+TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 MAX_UPLOAD_BYTES = 3 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
 
@@ -31,12 +32,12 @@ app = FastAPI(
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return (PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
+    return (TEMPLATE_DIR / "index.html").read_text(encoding="utf-8")
 
 
 @app.get("/privacy", response_class=HTMLResponse)
 def privacy() -> str:
-    return (PUBLIC_DIR / "privacy.html").read_text(encoding="utf-8")
+    return (TEMPLATE_DIR / "privacy.html").read_text(encoding="utf-8")
 
 
 @app.get("/styles.css", include_in_schema=False)

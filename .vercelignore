@@ -3,5 +3,6 @@
 !app.py
 !pinmazon
 !public
+!templates
 !requirements.txt
 !vercel.json
