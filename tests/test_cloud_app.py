@@ -39,6 +39,7 @@ def test_cloud_pages_and_health() -> None:
     assert client.get("/api/health").json() == {
         "status": "ok",
         "mode": "generate_only",
+        "manual_mode": "available",
     }
 
 
@@ -80,3 +81,39 @@ def test_cloud_rejects_short_key_before_generation() -> None:
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Enter a valid OpenAI API key."
+
+
+def test_cloud_manual_render_does_not_require_openai_key() -> None:
+    response = client.post(
+        "/api/render-manual",
+        data={
+            "amazon_tracking_id": "pinmazon-test-20",
+            "product_name": "Test Desk Accessory",
+            "amazon_url": "https://www.amazon.com/dp/B012345678",
+            "pin_copy_json": _copy().model_dump_json(),
+            "style": "apple_clean",
+        },
+        files={"product_image": ("product.png", _image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["published"] is False
+    assert payload["image_base64"]
+    assert payload["metadata"]["generation_mode"] == "chatgpt_manual"
+    assert payload["destination_url"].endswith("?tag=pinmazon-test-20")
+
+
+def test_cloud_manual_render_rejects_invalid_json() -> None:
+    response = client.post(
+        "/api/render-manual",
+        data={
+            "amazon_tracking_id": "pinmazon-test-20",
+            "product_name": "Test Desk Accessory",
+            "amazon_url": "https://www.amazon.com/dp/B012345678",
+            "pin_copy_json": "not-json",
+        },
+        files={"product_image": ("product.png", _image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 400
