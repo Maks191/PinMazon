@@ -17,16 +17,34 @@
     <section class="hero">
       <div class="eyebrow">Pinterest affiliate creative studio</div>
       <h1>One product.<br><em>One clean pin.</em></h1>
-      <p>Use your own OpenAI API key to create a compliant 1000 × 1500 Pinterest package. Your key is used for this request only and is never saved by PinMazon.</p>
+      <p>Create a compliant 1000 × 1500 Pinterest package with your own OpenAI API key, or use ChatGPT Plus manually with no API billing.</p>
     </section>
 
     <form id="generator" class="workspace">
       <section class="panel form-panel">
         <div class="section-title"><span>01</span><h2>Access</h2></div>
-        <label>OpenAI API key
-          <input name="openai_api_key" type="password" autocomplete="off" placeholder="sk-…" required minlength="20">
-          <small>Sent securely to this server for one generation request. Never stored.</small>
-        </label>
+        <div class="mode-switch" role="group" aria-label="Generation mode">
+          <button id="manual-mode" type="button" class="active">ChatGPT Plus — no API</button>
+          <button id="api-mode" type="button">OpenAI API</button>
+        </div>
+        <div id="api-access" hidden>
+          <label>OpenAI API key
+            <input name="openai_api_key" type="password" autocomplete="off" placeholder="sk-…" minlength="20">
+            <small>Sent securely to this server for one generation request. Never stored.</small>
+          </label>
+        </div>
+        <div id="manual-access" class="manual-box">
+          <b>Manual ChatGPT workflow</b>
+          <p>Fill the verified product fields, copy the prompt, use it in ChatGPT, then paste the returned JSON below.</p>
+          <div class="actions">
+            <button id="copy-prompt" class="button-secondary" type="button">Copy prompt</button>
+            <a class="button-secondary" href="https://chatgpt.com/" target="_blank" rel="noopener">Open ChatGPT</a>
+          </div>
+          <label>ChatGPT JSON
+            <textarea name="pin_copy_json" rows="8" placeholder='Paste the JSON object returned by ChatGPT' required></textarea>
+          </label>
+          <small id="prompt-status">No OpenAI API key is sent in this mode.</small>
+        </div>
         <label>Amazon Tracking ID
           <input name="amazon_tracking_id" placeholder="your-tag-20" required>
         </label>
@@ -71,10 +89,10 @@
               <option value="warm_lifestyle">Warm lifestyle</option>
             </select>
           </label>
-          <label class="check"><input name="use_ai_background" type="checkbox" value="true"> Generate AI background</label>
+          <label id="ai-background" class="check" hidden><input name="use_ai_background" type="checkbox" value="true"> Generate AI background</label>
         </div>
 
-        <button id="submit" type="submit">Generate Pin Pack <span>→</span></button>
+        <button id="submit" type="submit">Render Pin from JSON <span>→</span></button>
         <p class="notice">This cloud MVP does not publish to Pinterest. Review the generated claims, product image, disclosure and affiliate tag before publishing.</p>
       </section>
 

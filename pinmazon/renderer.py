@@ -48,14 +48,13 @@ def _gradient(style: str) -> Image.Image:
         "warm_lifestyle": ((70, 58, 48), (24, 20, 18)),
     }.get(style, ((32, 35, 40), (11, 12, 14)))
 
-    image = Image.new("RGB", CANVAS)
-    px = image.load()
+    strip = Image.new("RGB", (1, CANVAS[1]))
+    px = strip.load()
     for y in range(CANVAS[1]):
         t = y / (CANVAS[1] - 1)
         row = tuple(int(top[i] * (1 - t) + bottom[i] * t) for i in range(3))
-        for x in range(CANVAS[0]):
-            px[x, y] = row
-    return image
+        px[0, y] = row
+    return strip.resize(CANVAS)
 
 
 def _remove_near_white(image: Image.Image) -> Image.Image:

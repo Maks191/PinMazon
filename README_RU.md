@@ -1,89 +1,155 @@
-# PinMazon One-Click MVP
+# PinMazon Local — Pin Studio + Pin Publisher
 
-Локальная программа под Windows и generate-only веб-версия для Vercel:
+Локальный Windows-конвейер для подготовки Pinterest affiliate-контента. Milestone A+B работает без OpenAI API и не скрапит Amazon.
 
-**карточка товара + проверенные факты + affiliate link → SEO-копирайт → Pinterest pin 1000×1500 → публикация через Pinterest API.**
+Основная цепочка:
 
-## Почему архитектура такая
+`Products → Pin Studio → Review Table → Ready Queue → Pin Publisher`
 
-Codex используется как разработчик и обслуживающий агент проекта. Рабочая программа не кликает по браузеру вместо тебя: она вызывает OpenAI API и официальный Pinterest API. Это стабильнее, проще тестируется и меньше похоже на бота-спамера.
+На этом этапе Publisher ничего не публикует. Он только показывает очередь, прошедшую проверки.
 
-Изображение товара не перерисовывается нейросетью. Программа берёт реальное фото товара, убирает почти белый фон и композитит товар на шаблон. Опционально GPT Image создаёт только фон. Так меньше риск исказить модель, кнопки, комплект или форму товара.
+## Что работает сейчас
 
-## Что уже работает
+### Pin Studio — `studio_app.py`
 
-- генерация структурированного SEO-пакета на английском;
-- headline + два коротких benefit bullets;
-- 1000×1500 PNG;
-- пять визуальных стилей;
-- affiliate disclosure;
-- фильтр цен, скидок, рейтингов, отзывов и агрессивных CTA;
-- проверка Amazon tracking tag;
-- защита от случайных дублей;
-- OAuth Pinterest и автоматическое обновление токена;
-- загрузка списка досок;
-- публикация Pin через Pinterest API;
-- AI_MODIFIED disclosure при AI-фоне;
-- история и JSON-метаданные каждого запуска.
+- создание кампаний до 100 creatives;
+- ручной ввод товара с реальным фото;
+- импорт CSV и XLSX;
+- автоматическое добавление Amazon tracking tag из `.env`;
+- Product Review и ручное одобрение;
+- no-API Template copy provider;
+- три угла: result, problem/solution, audience/use-case;
+- локальный Pillow renderer, итог строго 1000×1500;
+- batch resume без повторной генерации готовых строк;
+- Review Table, редактирование текста/доски и локальный re-render;
+- массовое Approve / Reject / Send to ready;
+- CSV export.
 
-## Ограничение MVP
+### Pin Publisher — `publisher_app.py`
 
-Программа намеренно **не скрапит Amazon product page**. Для запуска нужно:
-- загрузить фото товара или вставить прямой URL изображения;
-- вставить название;
-- вставить проверенные характеристики;
-- использовать SiteStripe/Special Link либо tracking ID.
+- читает ту же SQLite-базу;
+- показывает только очередь `ready` / `queued`;
+- экспортирует ready queue в CSV;
+- не открывает Pinterest и не публикует автоматически.
 
-Настоящий режим «вставил только Amazon URL» добавляется через Amazon Creators API / PA API после получения ключей и проверки разрешений аккаунта.
+### Сохранён старый режим
+
+Старое приложение `streamlit_app.py` и веб-версия FastAPI не удалены. Generate only продолжает работать. Веб-версия также имеет ручной режим `ChatGPT Plus — no API`: скопировать prompt → получить JSON в ChatGPT → вставить JSON → отрендерить PNG.
+
+## Почему «тема → программа сама находит товары» пока ограничена
+
+Без Amazon Creators API / PA API нельзя безопасно и стабильно получать название, фото и характеристики только по теме или Amazon URL. PinMazon намеренно не читает HTML Amazon. Сейчас тема создаёт кампанию, а товары добавляются вручную или импортируются из CSV/XLSX с проверенными данными и реальным изображением.
+
+## Размещение на диске E
+
+Рекомендуемый путь:
+
+```text
+E:\PinMazon\
+  studio_app.py
+  publisher_app.py
+  pinmazon_core\
+  data\
+    pinmazon.sqlite3
+    assets\products\
+    assets\creatives\
+    browser_profiles\pinterest\
+    debug\
+```
+
+Если код находится не на E, можно оставить его в другом месте, а данные перенести через `.env`:
+
+```env
+PINMAZON_DATA_DIR=E:\PinMazonData
+```
 
 ## Установка на Windows
 
-1. Распакуй папку.
-2. Запусти `setup_windows.bat`.
-3. Открой `.env` и вставь `OPENAI_API_KEY`.
-4. Добавь `AMAZON_TRACKING_ID` или используй готовые SiteStripe links.
-5. Для прямой публикации создай приложение Pinterest, зарегистрируй redirect URI:
-   `http://localhost:8787/callback`
-6. Добавь `PINTEREST_APP_ID` и `PINTEREST_APP_SECRET`.
-7. В активированном окружении выполни:
-   `python scripts\pinterest_oauth.py`
-8. Запусти `run_windows.bat`.
+```bat
+setup_windows.bat
+```
 
-## Облачная версия на Vercel
+Для полностью локального Milestone B `OPENAI_API_KEY` и Pinterest credentials не нужны. Для автоматического affiliate URL добавь в `.env`:
 
-`app.py` экспортирует FastAPI-приложение для Vercel. Пользователь вводит собственный
-OpenAI API key в поле типа password. Ключ используется только для текущего запроса и
-не сохраняется приложением. Облачная версия работает только в режиме `Generate only`:
-Pinterest App Secret и прямую публикацию нельзя безопасно передавать через публичную форму.
+```env
+AMAZON_TRACKING_ID=your-tag-20
+```
 
-Локальный Streamlit-интерфейс находится в `streamlit_app.py` и запускается как раньше
-через `run_windows.bat`.
+## Запуск двух приложений
 
-## Безопасный первый тест
+Открой два окна:
 
-Сначала выбери `Generate only`. В этом режиме Pinterest Board ID и Pinterest OAuth
-не нужны. Проверь:
-- товар не искажён;
-- нет неподтверждённых характеристик;
-- ссылка содержит твой tracking ID;
-- disclosure есть;
-- board подходит теме.
+```bat
+run_studio_windows.bat
+run_publisher_windows.bat
+```
 
-После этого переключайся на `Generate + publish now`.
+Или вручную:
+
+```bat
+.venv\Scripts\activate
+streamlit run studio_app.py --server.port 8501
+streamlit run publisher_app.py --server.port 8502
+```
+
+- Pin Studio: `http://localhost:8501`
+- Pin Publisher: `http://localhost:8502`
+
+## Рабочий порядок
+
+1. В Studio создай кампанию и укажи реальные Pinterest boards.
+2. Добавь товары вручную или импортируй CSV/XLSX.
+3. В Product Review проверь фото, affiliate URL, факты и risk flags.
+4. Approve только проверенные товары.
+5. В Generate Batch выбери кампанию и товары, запусти generation/resume.
+6. В Review Table отредактируй текст/board, нажми Approve selected.
+7. Нажми Send selected to ready.
+8. Открой Publisher и проверь ready queue.
+
+## Quality gates перед `ready`
+
+Creative блокируется, если:
+
+- нет PNG или размер не 1000×1500;
+- нет affiliate disclosure;
+- Amazon URL без tracking tag;
+- board или alt text пустые;
+- headline и bullets не проходят лимиты;
+- есть цена, скидка, rating/review claims или aggressive CTA;
+- есть critical risk flags;
+- creative не был вручную одобрен.
+
+## Формат импорта
+
+Поддерживаются CSV/XLSX колонки:
+
+- `Product`
+- `Product URL`
+- `Affiliate URL`
+- `Image URL` — только прямая PNG/JPG/WEBP ссылка
+- `Local Image`
+- `Category`
+- `Audience`
+- `Verified Facts`
+- `Score`
 
 ## Проверка разработчиком
-
-После установки основных зависимостей установи тестовые и запусти проверки:
 
 ```bat
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-## Следующий этап
+## Что ещё не реализовано
 
-1. Amazon Creators API / PA API: URL → название, изображения и факты.
-2. Очередь и расписание: 3–5 пинов в день без включённого компьютера.
-3. База товаров и пакетная генерация 3–5 углов на товар.
-4. Аналитика Pinterest: impressions, saves, outbound clicks, CTR.
-5. Автоматическое создание новых вариаций только для победителей.
+- автоматический поиск/импорт товаров через Amazon Creators API / PA API;
+- Ollama и OpenAI copy providers в batch-режиме;
+- GPT Image hybrid backgrounds;
+- scheduler и дневные лимиты;
+- Playwright persistent profile;
+- реальная публикация и screenshots/stop conditions;
+- Pinterest Analytics CSV и winner variations.
+
+## Milestone C
+
+Следующий этап: официальный copy-provider adapter, Hybrid GPT Image только для фона, счётчик API-вызовов и более глубокий resume. До подтверждения официальных API credentials текущие вызовы не меняются.

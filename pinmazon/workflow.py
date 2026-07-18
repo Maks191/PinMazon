@@ -14,7 +14,7 @@ from .copywriter import generate_pin_copy
 from .history import already_exists, append_history, duplicate_key
 from .pinterest import PinterestClient
 from .renderer import render_pin
-from .schemas import ProductInput, WorkflowResult
+from .schemas import PinCopy, ProductInput, WorkflowResult
 from .settings import Settings
 
 
@@ -53,11 +53,12 @@ def run_pin_job(
     settings: Settings,
     publish_now: bool,
     force_duplicate: bool = False,
+    pin_copy: PinCopy | None = None,
 ) -> WorkflowResult:
     validate_destination(product.destination_url, settings)
     if publish_now and not product.board_id:
         raise ValueError("Pinterest board ID is required for publishing.")
-    copy = validate_copy(generate_pin_copy(product, settings))
+    copy = validate_copy(pin_copy or generate_pin_copy(product, settings))
 
     key = duplicate_key(
         product.product_name,
